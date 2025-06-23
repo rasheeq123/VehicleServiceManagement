@@ -1,287 +1,13 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using System.Security.Claims;
-using VehicleServiceManagemnt.Models;
-
-namespace VehicleServiceManagement.Controllers
-{
-    public class AccountController : Controller
-
-    {
-        private readonly UserManager<IdentityUser> _userManager;
-        private readonly SignInManager<IdentityUser> _signInManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
-        public AccountController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, RoleManager<IdentityRole> roleManager)
-
-        {
-            _userManager = userManager;
-
-            _signInManager = signInManager;
-
-            _roleManager = roleManager;
-
-        }
-
-
-        [HttpGet]
-
-
-
-        public IActionResult Register()
-
-        {
-
-            return View();
-
-        }
-
-        [HttpPost]
-
-        public async Task<IActionResult> Register(User model)
-
-        {
-
-            if (ModelState.IsValid)
-
-            {
-
-                // Check if the email ID already exists
-
-                var existingUser = await _userManager.FindByEmailAsync(model.EmailId);
-
-                if (existingUser != null)
-
-                {
-
-                    ViewBag.ErrorMessage = "Email ID already exists.";
-
-                    return View(model);
-
-                }
-
-                // if user type is Admin
-
-                if (model.UserType == "Admin")
-
-                {
-
-                    var adminCount = (await _userManager.GetUsersInRoleAsync("Admin")).Count;
-
-                    // If there are already two admins, return an error message
-
-                    if (adminCount >= 2)
-
-                    {
-
-                        ViewBag.ErrorMessage = "Number of admin accounts have been limited to 2";
-
-                        return View(model);
-
-                    }
-
-                }
-
-                var user = new User
-
-                {
-
-                    UserName = model.EmailId,
-
-                    Email = model.EmailId,
-
-                    EmailConfirmed = true,
-
-                    Password = model.Password
-
-                };
-
-                var res = await _userManager.CreateAsync(user, model.Password);
-
-                if (res.Succeeded)
-
-                {
-
-                    if (model.UserType == "Admin")
-
-                    {
-
-                        // Add the user to the Admin role
-
-                        await _userManager.AddToRoleAsync(user, "Admin");
-
-                        HttpContext.Session.SetString("EmailId", model.EmailId);
-
-                        return RedirectToAction("Login", "Account");
-
-                    }
-
-                    else if (model.UserType == "Advisor")
-
-                    {
-
-                        await _userManager.AddToRoleAsync(user, "Advisor");
-
-                        HttpContext.Session.SetString("EmailId", model.EmailId);
-
-                        return RedirectToAction("Login", "Account");
-
-                    }
-
-                    return RedirectToAction("Register", "User");
-
-                }
-                // reg fails
-                var err = string.Join(",", res.Errors.Select(e => e.Description));
-
-                return Content($"{err}");
-
-            }
-
-            return View(model);
-
-        }
-
-        //Login Page
-
-        public IActionResult Login()
-
-        {
-
-            return View();
-
-        }
-
-        [HttpPost]
-
-        public async Task<IActionResult> Login(User model)
-
-        {
-
-            if (ModelState.IsValid)
-
-            {
-
-                var res = await _signInManager.PasswordSignInAsync(model.EmailId, model.Password, isPersistent: false, lockoutOnFailure: false);
-
-                if (res.Succeeded)
-
-                {
-
-                    var user = await _userManager.FindByEmailAsync(model.EmailId);
-
-                    if (!User.Identity.IsAuthenticated)
-
-                    {
-
-                        return Unauthorized("User is not authenticated");
-
-                    }
-
-                    if (user != null)
-
-                    {
-
-
-                        var roles = await _userManager.GetRolesAsync(user);
-
-                        var claims = new List<Claim>
-
-                {
-
-                    new Claim(ClaimTypes.Name, user.UserName),
-
-                    new Claim(ClaimTypes.Role, model.UserType)
-
-                };
-                        var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-
-                        var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-
-                        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, claimsPrincipal);
-
-                        if (roles.Contains("Admin"))
-
-                        {
-
-                            return RedirectToAction("Index", "Admin");
-
-                        }
-
-                        else if (roles.Contains("Advisor"))
-
-                        {
-
-                            return RedirectToAction("Index", "Advisor");
-
-                        }
-
-                    }
-
-                    else
-
-                    {
-
-                        ViewBag.ErrorMessage = "Incorrect email or password";
-
-                        return View(model);
-
-                    }
-
-                }
-
-                else
-
-                {
-                    ViewBag.ErrorMessage = "Incorrect email or password";
-
-                    return View(model);
-
-                }
-
-            }
-
-            else
-
-            {
-
-                ViewBag.ErrorMessage = "Incorrect email or password";
-
-                return View(model);
-
-            }
-
-            return View();
-
-        }
-        public async Task<IActionResult> Logout()
-
-        {
-            await _signInManager.SignOutAsync();
-
-            return RedirectToAction("Login");
-
-        }
-
-    }
-
-}
-
-Admin Controller
-
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using VehicleServiceManagement.Data;
-using VehicleServiceManagement.Models;
+using VehicleServiceManagemnt.Data;
+using VehicleServiceManagemnt.Models;
 
-namespace VehicleServiceManagement.Controllers
+namespace VehicleServiceManagemnt.Controllers
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles ="Admin")]
     public class AdminController : Controller
     {
         private readonly VehicleDbContext db;
@@ -296,7 +22,7 @@ namespace VehicleServiceManagement.Controllers
         }
         public ActionResult ServiceScheduling()
         {
-
+            
             var scheduledServices = db.ServiceRecords
                 .Include(s => s.Vehicle)
                 .Include(s => s.Vehicle.Customer)
@@ -312,7 +38,7 @@ namespace VehicleServiceManagement.Controllers
 
         public IActionResult ManageServiceRecords()
         {
-
+           
             var today = DateTime.Now;
             var serviceRecords = db.ServiceRecords
                 .Include(s => s.Vehicle)
@@ -322,7 +48,7 @@ namespace VehicleServiceManagement.Controllers
             {
                 if (record.ServiceDate.Date <= today.Date && record.Status == ServiceStatus.Scheduled)
                 {
-                    record.Status = ServiceStatus.InProgress;
+                    record.Status = ServiceStatus.InProgress; 
                 }
             }
 
@@ -330,7 +56,7 @@ namespace VehicleServiceManagement.Controllers
 
             return View(serviceRecords);
         }
-
+        
         public IActionResult CreateServiceRecord()
         {
             var combinedList = db.Vehicles.Select(v => new
@@ -391,7 +117,7 @@ namespace VehicleServiceManagement.Controllers
                 return NotFound();
             }
 
-
+            
             existingRecord.ServiceDate = serviceRecord.ServiceDate;
             existingRecord.Status = serviceRecord.Status;
             existingRecord.ServiceRepID = serviceRecord.ServiceRepID;
@@ -409,7 +135,7 @@ namespace VehicleServiceManagement.Controllers
             return View(serviceRecord);
         }
 
-
+        
 
         // GET: Delete Service Record
         public IActionResult DeleteServiceRecord(int id)
@@ -427,7 +153,7 @@ namespace VehicleServiceManagement.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult DeleteConfirmed(int id)
         {
-            var serviceRecord = db.ServiceRecords.FirstOrDefault(s => s.ServiceRecordID == id);
+            var serviceRecord = db.ServiceRecords.FirstOrDefault(s=> s.ServiceRecordID==id);
             if (serviceRecord != null)
             {
                 db.ServiceRecords.Remove(serviceRecord);
@@ -475,8 +201,8 @@ namespace VehicleServiceManagement.Controllers
             return RedirectToAction("AssignServiceAdvisor");
         }
 
-        // Display completed service records
-        public ActionResult ServiceCompletion()
+// Display completed service records
+public ActionResult ServiceCompletion()
         {
             var completedServices = db.ServiceRecords.Include(s => s.Vehicle).Where(s => s.Status == ServiceStatus.Completed).ToList();
             return View(completedServices);
@@ -491,7 +217,7 @@ namespace VehicleServiceManagement.Controllers
 
         [HttpPost]
 
-
+        
         public ActionResult AddVehicle(VehicleModel vehicle)
         {
             if (ModelState.IsValid)
