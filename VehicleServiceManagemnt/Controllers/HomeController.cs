@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using VehicleServiceManagement.Models;
+using VehicleServiceManagemnt.Models;
 
-namespace VehicleServiceManagement.Controllers
+namespace VehicleServiceManagemnt.Controllers
 {
     public class HomeController : Controller
     {
